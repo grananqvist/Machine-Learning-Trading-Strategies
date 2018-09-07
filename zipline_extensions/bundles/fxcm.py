@@ -1,63 +1,69 @@
 import os
-import numpy  as np
+import numpy as np
 import pandas as pd
 from zipline.utils.cli import maybe_show_progress
 from zipline.utils.calendars import get_calendar
 
-def via_fxcm_csv_daily(path, calendar_name='forex', start=None,end=None):
+
+def via_fxcm_csv_daily(path, calendar_name='forex', start=None, end=None):
 
     # TODO: use FXM downloader here
 
     # get files to bundle
     _, _, file_names = list(os.walk(path))[0]
     file_names = [f for f in file_names if f[-4:] == '.csv']
-    symbols = tuple([ file_name.split('_')[0] for file_name in file_names ])
+    symbols = tuple([file_name.split('_')[0] for file_name in file_names])
 
     # there are inconsistent data before this date
     earliest_date = pd.Timestamp('2001-09-17 00:00:00', tz=None)
 
     # Define custom ingest function
-    def ingest(environ,
-               asset_db_writer,
-               minute_bar_writer,  
-               daily_bar_writer,
-               adjustment_writer,
-               calendar,
-               cache,
-               show_progress,
-               output_dir,
-               # pass these as defaults to make them 'nonlocal' in py2
-               start=start,
-               end=end):
+    def ingest(
+            environ,
+            asset_db_writer,
+            minute_bar_writer,
+            daily_bar_writer,
+            adjustment_writer,
+            calendar,
+            cache,
+            show_progress,
+            output_dir,
+            # pass these as defaults to make them 'nonlocal' in py2
+            start=start,
+            end=end):
 
         print('Making bundle with symbols: ', symbols)
 
-        df_metadata = pd.DataFrame(np.empty(len(symbols), dtype=[
-            ('start_date', 'datetime64[ns]'),
-            ('end_date', 'datetime64[ns]'),
-            ('auto_close_date', 'datetime64[ns]'),
-            ('symbol', 'object'),
-        ]))
+        df_metadata = pd.DataFrame(
+            np.empty(
+                len(symbols),
+                dtype=[
+                    ('start_date', 'datetime64[ns]'),
+                    ('end_date', 'datetime64[ns]'),
+                    ('auto_close_date', 'datetime64[ns]'),
+                    ('symbol', 'object'),
+                ]))
 
         # We need to feed something that is iterable - like a list or a generator -
         # that is a tuple with an integer for sid and a DataFrame for the data to daily_bar_writer
-        data=[]
-        sid=0
+        data = []
+        sid = 0
 
         # preprocess every symbol
         for file_name in file_names:
 
             symbol = file_name.split('_')[0]
-            print( "symbol=",symbol,"file=",os.path.join(path, file_name))
+            print("symbol=", symbol, "file=", os.path.join(path, file_name))
 
-            df=pd.read_csv(
-                    os.path.join(path, file_name),
-                    index_col='date',
-                    parse_dates=True,
-                    ).sort_index()
+            df = pd.read_csv(
+                os.path.join(path, file_name),
+                index_col='date',
+                parse_dates=True,
+            ).sort_index()
 
             # change time to midnight. is 21:00 by default
-            df.index = df.index + df.index.map(lambda x: pd.Timedelta(hours=24-x.hour))
+            df.index = df.index + df.index.map(
+                lambda x: pd.Timedelta(hours=24 - x.hour))
 
             candles_before = len(df)
 
@@ -78,15 +84,15 @@ def via_fxcm_csv_daily(path, calendar_name='forex', start=None,end=None):
 
             # dummy volume col
             df['volume'] = 0
-            df['volume'] = df['volume'].astype(np.int32) 
+            df['volume'] = df['volume'].astype(np.int32)
 
             candles_after = len(df)
 
-            print('--Preprocessing summary--\ncandles before: {0}\ncandles after: {1}'.format(
-                candles_before,
-                candles_after))
+            print(
+                '--Preprocessing summary--\ncandles before: {0}\ncandles after: {1}'.
+                format(candles_before, candles_after))
 
-            data.append((sid,df))
+            data.append((sid, df))
 
             # the start date is the date of the first trade and
             start_date = df.index[0]
@@ -121,4 +127,3 @@ def via_fxcm_csv_daily(path, calendar_name='forex', start=None,end=None):
         print('Metadata has been written')
 
     return ingest
-
